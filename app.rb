@@ -1,32 +1,37 @@
 require 'sinatra'
-require './schema'
+require 'rom'
+
+ROM.setup(:memory)
+
 require './uber_item'
 
-ROM_ENV.session do |session|
-  items = [
-    session[:uber_items].new(id: 1, name: "First item!"),
-    session[:uber_items].new(id: 2, name: "Second item!"),
-    session[:uber_items].new(id: 3, name: "Third item!")
-  ]
-  items.each { |item| session[:uber_items].save(item) }
-  session.flush 
-end
+rom = ROM.finalize.env
+
+rom.command(:uber_items).create.call(id: 1, name: "First item!")
+rom.command(:uber_items).create.call(id: 2, name: "Second item!")
+rom.command(:uber_items).create.call(id: 3, name: "Third item!")
 
 get '/' do
   "Hi there!"
 end
 
 get '/uber-items' do
-  @all_items = ROM_ENV[:uber_items].to_a 
+  @all_items = rom.relation(:uber_items)
+    .as(:entity)
+    .to_a
 
   "Items: #{@all_items.map(&:name).join(", ")}"
 end
 
 get '/uber-items/:id' do |item_id|
   begin
-    @item = ROM_ENV[:uber_items].restrict(id: item_id.to_i).one 
+    @item = rom
+      .relation(:uber_items)
+      .by_id(item_id.to_i)
+      .as(:entity)
+      .one!
   rescue
-    return "404" 
+    return "404"
   end
 
   "Item: id: #{@item.id}, name: #{@item.name}"
